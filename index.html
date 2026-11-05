@@ -193,10 +193,12 @@ tr.detail td{background:#faf8fc;padding:6px 10px 12px 40px}
 .paper .ml .lbl{background:#fff;padding-right:.35em;font-weight:inherit}
 .paper .ml .lbl.b{font-weight:700}
 .paper .sigline{display:flex;justify-content:flex-end;margin-top:.6mm}
-.paper .sig{text-align:center;line-height:1.42}
-.paper .sig .dl{display:inline-block;border-bottom:1.3px dotted #000;width:52mm;margin:0 .3em;transform:translateY(-.25em)}
-.paper .sig .nm{display:block}
-.paper .sig .nm .dl{width:48mm;transform:none}
+/* ลายเซ็น: ชื่อในวงเล็บจัดกึ่งกลางตรงกับเส้นจุดลงชื่อพอดี */
+.paper .sig{display:inline-grid;grid-template-columns:auto var(--dw,52mm) auto;column-gap:.3em;align-items:end;line-height:1.42;white-space:nowrap}
+.paper .sig.rb{grid-template-columns:auto var(--dw,48mm)}
+.paper .sig .dl{display:block;border-bottom:1.3px dotted #000;margin-bottom:.32em}
+.paper .sig .cn{grid-column:2;display:flex;justify-content:center;min-width:0}
+.paper .sig .ndl{display:inline-block;border-bottom:1.3px dotted #000;width:calc(var(--dw,52mm) - 5mm)}
 .paper .acts-p{font-size:11.6pt;display:grid;grid-template-columns:80mm 1fr;column-gap:3mm;row-gap:1.4mm;margin:1mm 0 2.5mm}
 .paper .ai{display:flex;align-items:center;gap:.45em;white-space:nowrap;min-width:0}
 .paper .ai .fv{min-width:2.4em}
@@ -209,13 +211,10 @@ tr.detail td{background:#faf8fc;padding:6px 10px 12px 40px}
 .paper .opin + .opin{margin-top:1.5mm}
 .paper .opin .oh{font-weight:700;white-space:nowrap}
 .paper .opin .ml{margin:0}
-.paper .opin .osig{width:58%;margin-left:42%;text-align:center;line-height:1.38;margin-top:.8mm;white-space:nowrap}
-.paper .opin .osig .dl{display:inline-block;border-bottom:1.3px dotted #000;width:46mm;margin-left:.3em}
-.paper .opin .osig .nm,.paper .opin .osig .rl{display:block}
-.paper .opin .osig .nm .dl{width:44mm;margin:0}
-.paper .sigs .sig{white-space:nowrap}
-.paper .sigs .sig .dl{width:28mm}
-.paper .sigs .sig .nm .dl{width:42mm}
+.paper .opin .osig{width:58%;margin-left:42%;display:flex;justify-content:center;margin-top:.8mm}
+.paper .opin .osig .sig{line-height:1.38;--dw:48mm}
+.paper .sigs .sig{justify-self:center;--dw:28mm}
+.paper .sigs .sig .ndl{width:40mm}
 .paper .meta-foot{position:absolute;left:22mm;right:14mm;bottom:5mm;font-size:8pt;color:#777;display:flex;justify-content:space-between}
 
 /* summary paper */
@@ -829,9 +828,10 @@ function mlBlock(label, text, n, opts = {}){
 }
 const OPIN_ROLE = { adminDeputy: 'รองผู้อำนวยการกลุ่มบริหารทั่วไป', director: 'ผู้อำนวยการโรงเรียนคลองหาดพิทยาคม' };
 const signerName = (sg, k) => sg[k] || (k === 'systemTeacher' ? sg.guidance : '') || '';
-function sigHTML(role, name, wide){
-  return `<div class="sig">ลงชื่อ<span class="dl" ${wide ? `style="width:${wide}"` : ''}></span>${esc(role)}
-    <span class="nm">(${name ? `&nbsp;${esc(name)}&nbsp;` : '<span class="dl"></span>'})</span></div>`;
+function sigHTML(role, name, o = {}){
+  const nm = name ? `(&nbsp;${esc(name)}&nbsp;)` : '(<span class="ndl"></span>)';
+  return `<div class="sig${o.roleBelow ? ' rb' : ''}"><span>ลงชื่อ</span><span class="dl"></span>${o.roleBelow ? '' : `<span>${esc(role)}</span>`}`
+    + `<span class="cn"><span>${nm}</span></span>${o.roleBelow ? `<span class="cn"><span>${esc(role)}</span></span>` : ''}</div>`;
 }
 function formHTML(r){
   const { y, m, d } = parseISO(r.date);
@@ -867,9 +867,7 @@ function formHTML(r){
     <div class="opins">
       ${SIGNERS.slice(4).map(([k, , role]) => `<div class="opin"><div class="oh">ข้อเสนอแนะ${k === 'director' ? 'ของผู้อำนวยการโรงเรียน' : 'ของรอง ผอ.กลุ่มบริหารทั่วไป'}</div>
         <div class="ml" style="--n:2"></div>
-        <div class="osig">ลงชื่อ<span class="dl"></span>
-          <span class="nm">(${signerName(sg, k) ? `&nbsp;${esc(signerName(sg, k))}&nbsp;` : '<span class="dl"></span>'})</span>
-          <span class="rl">${OPIN_ROLE[k]}</span></div></div>`).join('')}
+        <div class="osig">${sigHTML(OPIN_ROLE[k], signerName(sg, k), { roleBelow: true })}</div></div>`).join('')}
     </div>
   </div>`;
 }
@@ -989,12 +987,22 @@ async function wordForm(r){
     const NB = { style: BorderStyle.NONE, size: 0, color: 'FFFFFF' };
     const NOB = { top: NB, bottom: NB, left: NB, right: NB, insideHorizontal: NB, insideVertical: NB };
     const cell = (children, w) => new TableCell({ children, width: { size: w, type: WidthType.DXA }, borders: { top: NB, bottom: NB, left: NB, right: NB } });
-    const sigParas = (role, name, dots = 26) => [
-      new Paragraph({ alignment: AlignmentType.CENTER, children: [T('ลงชื่อ' + '.'.repeat(dots) + role)] }),
-      new Paragraph({ alignment: AlignmentType.CENTER, children: [T(name ? `(  ${name}  )` : '(' + '.'.repeat(dots + 6) + ')')] })
-    ];
+    // ลายเซ็นแบบใช้ tab: "ลงชื่อ" + เส้นจุด (tab leader) แล้วชื่อในวงเล็บใช้ center tab ที่กึ่งกลางเส้นจุด → ตรงกันพอดี
+    const LBL = 620;   // ความกว้างโดยประมาณของคำว่า "ลงชื่อ" (twips)
+    const sigTab = (role, name, { left = 0, dots = 1800, roleBelow = false, nameDots = 0 } = {}) => {
+      const start = left + LBL, end = start + dots, mid = Math.round((start + end) / 2);
+      const R = String(role).replace(/ /g, ' ');
+      const nameTxt = name ? `( ${name} )` : '(' + '.'.repeat(nameDots || Math.max(10, Math.round(dots / 62))) + ')';
+      const out = [
+        new Paragraph({ indent: { left }, tabStops: [{ type: TabStopType.LEFT, position: end, leader: LeaderType.DOT }], children: [T('ลงชื่อ\t'), ...(roleBelow ? [] : [T(R)])] }),
+        new Paragraph({ tabStops: [{ type: TabStopType.CENTER, position: mid }], children: [T('\t' + nameTxt)] })
+      ];
+      if (roleBelow) out.push(new Paragraph({ tabStops: [{ type: TabStopType.CENTER, position: mid }], children: [T('\t' + R)] }));
+      return out;
+    };
+    const sigParas = (role, name) => sigTab(role, name, { left: 200, dots: 2000 });
     const rightSig = (role, name) => new Table({ width: { size: W, type: WidthType.DXA }, columnWidths: [W * 0.42, W * 0.58], borders: NOB,
-      rows: [new TableRow({ children: [cell([new Paragraph('')], W * 0.42), cell(sigParas(role, name, 34), W * 0.58)] })] });
+      rows: [new TableRow({ children: [cell([new Paragraph('')], W * 0.42), cell(sigParas(role, name), W * 0.58)] })] });
     const { y, m, d } = parseISO(r.date);
     const a = r.actions || {}; const sg = r.signers || {};
     const half = W / 2, c1 = Math.round(W * 0.45), c2 = W - c1;
@@ -1010,8 +1018,7 @@ async function wordForm(r){
     ] });
     // ลงนาม 1–4: 2 คอลัมน์ ไล่ลงมา (ซ้าย 1–2, ขวา 3–4) แล้วตามด้วยข้อเสนอแนะ + ลงนามของ รอง ผอ. และ ผอ.
     const sig2 = (role, name) => [
-      new Paragraph({ alignment: AlignmentType.CENTER, children: [T('ลงชื่อ' + '.'.repeat(26) + role.replace(/ /g, '\u00A0'))] }),
-      new Paragraph({ alignment: AlignmentType.CENTER, children: [T(name ? `(\u00A0${name}\u00A0)` : '(' + '.'.repeat(34) + ')')] }),
+      ...sigTab(role, name, { left: 100, dots: 1450, nameDots: 34 }),
       new Paragraph({ spacing: { line: 90, lineRule: D.LineRuleType.EXACT }, children: [T(' ', { size: 8 })] })
     ];
     const sigTable = new Table({ width: { size: W, type: WidthType.DXA }, columnWidths: [half, half], borders: NOB,
@@ -1021,11 +1028,8 @@ async function wordForm(r){
       new Paragraph({ spacing: { before: 20 }, children: [B(k === 'director' ? 'ข้อเสนอแนะของผู้อำนวยการโรงเรียน' : 'ข้อเสนอแนะของรอง ผอ.กลุ่มบริหารทั่วไป')] }),
       P([fill()]), P([fill()]),
       new Table({ width: { size: W, type: WidthType.DXA }, columnWidths: [Math.round(W * 0.42), W - Math.round(W * 0.42)], borders: NOB,
-        rows: [new TableRow({ children: [cell([new Paragraph('')], Math.round(W * 0.42)), cell([
-          new Paragraph({ alignment: AlignmentType.CENTER, children: [T('ลงชื่อ' + '.'.repeat(40))] }),
-          new Paragraph({ alignment: AlignmentType.CENTER, children: [T(signerName(sg, k) ? `( ${signerName(sg, k)} )` : '(' + '.'.repeat(44) + ')')] }),
-          new Paragraph({ alignment: AlignmentType.CENTER, children: [T(OPIN_ROLE[k].replace(/ /g, ' '))] })
-        ], W - Math.round(W * 0.42))] })] })
+        rows: [new TableRow({ children: [cell([new Paragraph('')], Math.round(W * 0.42)),
+          cell(sigTab(OPIN_ROLE[k], signerName(sg, k), { left: 900, dots: 2700, roleBelow: true }), W - Math.round(W * 0.42))] })] })
     ]);
 
     const garuda = new ImageRun({ data: dataURLtoBytes(GARUDA), transformation: { width: 48, height: 54 },
